@@ -4,3 +4,4 @@ res://scenes/cube.tscn
 res://scripts/board_container.gd
 res://scripts/board_scene.gd
 res://scripts/mahjong_tile.gd
+res://scripts/tile_data.gd

@@ -1,9 +1,13 @@
 extends Node3D
 
+const TileDataRes = preload("res://scripts/tile_data.gd")
+
 @export var tile_scene: PackedScene
-@export var tile_icons: Array[Texture2D]
+@export var icon_type_count: int = 10
 
 signal tile_selected(tile: Node3D)
+signal board_ready(tiles: Array[Node3D])
+signal layer_rotated(axis_name: String, layer_value: float, angle_degrees: float)
 
 @onready var camera: Camera3D = get_viewport().get_camera_3d()
 
@@ -16,6 +20,7 @@ var _last_sync_angle := 0.0
 func _ready() -> void:
 	_create_cube_board()
 	rotate_y(-10 * PI / 180)
+	board_ready.emit(_get_tiles())
 
 func _process(_delta: float) -> void:
 	pass
@@ -99,7 +104,7 @@ func _rotate_layer(axis_name: String, layer_value: float, angle_degrees: float) 
 
 	var pivot := Node3D.new()
 	add_child(pivot)
-	pivot.global_position = _average_global_position(layer_tiles)
+	pivot.global_position = to_global(_get_layer_center(axis_name, layer_value))
 
 	for tile in layer_tiles:
 		tile.reparent(pivot, true)
@@ -123,6 +128,7 @@ func _rotate_layer(axis_name: String, layer_value: float, angle_degrees: float) 
 		tile.position = _snap_position(tile.position)
 
 	pivot.queue_free()
+	layer_rotated.emit(axis_name, layer_value, angle_degrees)
 
 func _on_sync_angle(current_angle: float) -> void:
 	var delta_rad := deg_to_rad(current_angle - _last_sync_angle)
@@ -161,6 +167,14 @@ func _axis_value(v: Vector3, axis_name: String) -> float:
 		"z": return v.z
 		_: return 0.0
 
+func _get_layer_center(axis_name: String, layer_value: float) -> Vector3:
+	var grid_center_y := (4 - 1) * spacing / 2.0
+	match axis_name:
+		"x": return Vector3(layer_value, grid_center_y, 0.0)
+		"y": return Vector3(0.0, layer_value, 0.0)
+		"z": return Vector3(0.0, grid_center_y, layer_value)
+	return Vector3.ZERO
+
 func _average_global_position(nodes: Array[Node3D]) -> Vector3:
 	var acc := Vector3.ZERO
 	for n in nodes:
@@ -191,8 +205,11 @@ func _create_cube_board() -> void:
 				add_child(tile)
 				tile.position = Vector3((x - 1.5) * spacing, y * spacing, (z - 1.5) * spacing)
 				tile.name = "Tile_%d" % count
-				if tile_icons.size() > 0:
-					tile.set_icon(tile_icons[randi() % tile_icons.size()])
+				tile.id = count
+				var data := TileDataRes.new()
+				data.grid_pos = Vector3(x, y, z)
+				data.icon_type = randi() % icon_type_count
+				tile.set_tile_data(data, data.icon_type)
 				count += 1
 
 func _unhandled_input(event: InputEvent) -> void:
